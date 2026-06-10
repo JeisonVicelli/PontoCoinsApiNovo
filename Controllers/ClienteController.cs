@@ -2,92 +2,105 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjetoPontos.Data;
 using ProjetoPontos.Models;
+using ProjetoPontos.Services;
 
 namespace ProjetoPontos.Controllers;
+
 [ApiController]
 [Route("[controller]")]
 public class ClienteController : ControllerBase
 {
-    private LojaDbContext _dbContext;
-    public ClienteController(LojaDbContext dbContext)
+    private readonly LojaDbContext _dbContext;
+    private readonly WhatsAppService _whatsapp;
+
+    public ClienteController(LojaDbContext dbContext, WhatsAppService whatsapp)
     {
         _dbContext = dbContext;
+        _whatsapp  = whatsapp;
     }
-    [HttpPost]
-    [Route("cadastrar")]   
-    public async Task<IActionResult> Cadastrar([FromBody]Cliente cliente)
+
+    [HttpPost("cadastrar")]
+    public async Task<IActionResult> Cadastrar([FromBody] Cliente cliente)
     {
-        if(_dbContext is null) return NotFound("DbContext não encontrado.");
-        if(cliente is null) return BadRequest("Cliente Inválido.");
-        if(_dbContext.Clientes is null) return NotFound("Tabela de Cliente não encontrado.");
-        cliente.DefinirSenha(cliente.PasswordHash);
+        if (cliente is null) return BadRequest("Dados do cliente inválidos.");
+        if (_dbContext.Clientes is null) return StatusCode(500, "Tabela de clientes não encontrada.");
+
+        try
+        {
+            cliente.DefinirSenha(cliente.PasswordHash!);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
+        var existe = await _dbContext.Clientes!
+            .AnyAsync(c => c.Cpf == cliente.Cpf);
+        if (existe) return Conflict("CPF já cadastrado.");
+
         await _dbContext.AddAsync(cliente);
         await _dbContext.SaveChangesAsync();
-        return Created("",cliente);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
+                {
+                    await _whatsapp.EnviarBoasVindasAsync(
+                        cliente.Nome ?? "Cliente",
+                        cliente.NumeroTelefone);
+                }
+            }
+            catch { }
+        });
+
+        return Created("", cliente);
     }
-    
-    [HttpGet]
-    [Route("listar")]
+
+    [HttpGet("listar")]
     public async Task<ActionResult<IEnumerable<Cliente>>> Listar()
     {
-        if(_dbContext is null) return NotFound("DbContext não encontrado.");
-        if(_dbContext.Clientes is null) return NotFound();
-
-        var clientes = await _dbContext.Clientes.ToListAsync();
-
-        // Se deseja incluir clientes com atributos nulos
-        return Ok(clientes);
+        if (_dbContext.Clientes is null) return NotFound();
+        return Ok(await _dbContext.Clientes.ToListAsync());
     }
-    [HttpGet]
-    [Route("buscar/{cpf}")]
+
+    [HttpGet("buscar/{cpf}")]
     public async Task<ActionResult<Cliente>> Buscar(string cpf)
     {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Clientes is null) return NotFound();
-        var clienteTemp = await _dbContext.Clientes.FindAsync(cpf);
-        if(clienteTemp is null) return NotFound();
-    return clienteTemp;
-    }
-    [HttpPut]
-    [Route("alterar")]
-    public async Task<ActionResult> Alterar(Cliente cliente)
-    {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Clientes is null) return NotFound();
-        //var clienteTemp = await _dbContext.Cliente.FindAsync(cliente.Cpf);
-        //if(clienteTemp is null) return NotFound();
-        _dbContext.Clientes.Update(cliente);    
-        await _dbContext.SaveChangesAsync();
-        return Ok();  
+        if (_dbContext.Clientes is null) return NotFound();
+        var cliente = await _dbContext.Clientes.FindAsync(cpf);
+        return cliente is null ? NotFound("Cliente não encontrado.") : Ok(cliente);
     }
 
-    [HttpPatch]
-    [Route("mudarDescricao/{cpf}")]
-    public async Task<ActionResult>MudarDescricao(string cpf,[FromForm] string Nome)
+    [HttpPut("alterar")]
+    public async Task<ActionResult> Alterar([FromBody] Cliente cliente)
     {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Clientes is null) return NotFound();
-        var clienteTemp = await _dbContext.Clientes.FindAsync(cpf);
-        if(clienteTemp is null) return NotFound();
-        clienteTemp.Nome = Nome;                   
+        if (_dbContext.Clientes is null) return NotFound();
+        _dbContext.Clientes.Update(cliente);
         await _dbContext.SaveChangesAsync();
-        return Ok();  
-    }
-    [HttpDelete]
-    [Route("excluir/{cpf}")]
-    public async Task<ActionResult>Excluir(string cpf,[FromForm] string descricao)
-    {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Clientes is null) return NotFound();
-        var clienteTemp = await _dbContext.Clientes.FindAsync(cpf);
-        if(clienteTemp is null) return NotFound();    
-        _dbContext.Clientes.Remove(clienteTemp);                 
-        await _dbContext.SaveChangesAsync();
-        return Ok("Cliente excluido com Sucesso");  
+        return Ok();
     }
 
-  internal static void Buscar()
-  {
-    throw new NotImplementedException();
-  }
+    [HttpPatch("mudarDescricao/{cpf}")]
+    public async Task<ActionResult> MudarDescricao(string cpf, [FromForm] string Nome)
+    {
+        if (_dbContext.Clientes is null) return NotFound();
+        var cliente = await _dbContext.Clientes.FindAsync(cpf);
+        if (cliente is null) return NotFound();
+        cliente.Nome = Nome;
+        await _dbContext.SaveChangesAsync();
+        return Ok();
+    }
+
+    [HttpDelete("excluir/{cpf}")]
+    public async Task<ActionResult> Excluir(string cpf)
+    {
+        if (_dbContext.Clientes is null) return NotFound();
+        var cliente = await _dbContext.Clientes.FindAsync(cpf);
+        if (cliente is null) return NotFound("Cliente não encontrado.");
+        _dbContext.Clientes.Remove(cliente);
+        await _dbContext.SaveChangesAsync();
+        return Ok("Cliente excluído com sucesso.");
+    }
 }

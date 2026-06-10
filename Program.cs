@@ -26,6 +26,9 @@ builder.Services.AddDbContext<LojaDbContext>(options =>
 
 // 2. Adiciona suporte a controladores para APIs
 builder.Services.AddControllers();
+builder.Services.AddScoped<ProjetoPontos.Services.CashbackService>();
+builder.Services.AddHttpClient<ProjetoPontos.Services.WhatsAppService>();
+builder.Services.AddHostedService<ProjetoPontos.Services.AlertaExpiracaoService>();
 
 // 3. Adiciona Endpoints API Explorer (necessário para Swagger/OpenAPI)
 builder.Services.AddEndpointsApiExplorer();
@@ -70,6 +73,13 @@ app.UseAuthorization();
 
 // 5. Mapeia os endpoints dos controladores (rotas da sua API)
 app.MapControllers();
+
+// --- Garante que o banco e as tabelas existem (cria se não existir) ---
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<LojaDbContext>();
+    db.Database.EnsureCreated(); // cria todas as tabelas mapeadas se o banco estiver vazio
+}
 
 // --- Executa a Aplicação ---
 app.Run();

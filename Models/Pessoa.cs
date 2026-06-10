@@ -21,6 +21,10 @@ namespace ProjetoPontos.Models
 
         [Required(ErrorMessage = "O campo Data de Cadastro é obrigatório.")]
         public DateTime? DataCadastro { get; set; }
+
+        public DateTime? DataUltimaMovimentacao { get; set; }
+
+        public DateTime? DataNascimento { get; set; }
     private string? userName;
     [Required(ErrorMessage = "O campo UserName é obrigatório.")]
     [RegularExpression("^[a-zA-Z0-9_]+$", ErrorMessage = "O campo UserName deve conter apenas letras, números e underscores.")]
@@ -44,27 +48,32 @@ namespace ProjetoPontos.Models
         get => passwordHash;
         set
         {
-            if (string.IsNullOrWhiteSpace(value) || !IsPasswordValid(value))
-            {
+            if (string.IsNullOrWhiteSpace(value))
                 throw new ArgumentException("Senha inválida.");
+
+            // Se for hash Base64 do SHA-256 (44 chars terminando em =), atribui direto
+            if (value.Length == 44 && value.EndsWith("="))
+            {
+                passwordHash = value;
+                return;
             }
+
+            // Caso contrário valida como senha em texto plano
+            if (!IsPasswordValid(value))
+                throw new ArgumentException("Senha inválida.");
+
             passwordHash = value;
         }
     }
 
-    // Método para definir a senha e calcular o hash
     public void DefinirSenha(string senha)
     {
         if (string.IsNullOrWhiteSpace(senha) || !IsPasswordValid(senha))
-        {
-            throw new ArgumentException("Senha inválida.");
-        }
+            throw new ArgumentException("Senha deve ter mínimo 8 caracteres, uma maiúscula, uma minúscula e um número.");
 
-        using (var sha256 = SHA256.Create())
-        {
-            byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(senha));
-            PasswordHash = Convert.ToBase64String(hashedBytes);
-        }
+        using var sha256 = SHA256.Create();
+        byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(senha));
+        passwordHash = Convert.ToBase64String(hashedBytes); // campo privado direto — evita re-validar o hash
     }
 
     // Método para verificar se a senha está correta

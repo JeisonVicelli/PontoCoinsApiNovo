@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProjetoPontos.Data;
 
@@ -11,9 +12,11 @@ using ProjetoPontos.Data;
 namespace PontoCoinsApiNovo.Migrations
 {
     [DbContext(typeof(LojaDbContext))]
-    partial class LojaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260506194522_AddHistoricoMovimentacao")]
+    partial class AddHistoricoMovimentacao
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -41,42 +44,6 @@ namespace PontoCoinsApiNovo.Migrations
                     b.ToTable("Brindes");
                 });
 
-            modelBuilder.Entity("ProjetoPontos.Models.CashbackLote", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("Ativo")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("CpfCliente")
-                        .IsRequired()
-                        .HasMaxLength(14)
-                        .HasColumnType("varchar(14)");
-
-                    b.Property<DateTime>("DataExpiracao")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("DataGerado")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int?>("HistoricoOrigemId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("Restante")
-                        .HasColumnType("decimal(10,2)");
-
-                    b.Property<decimal>("Valor")
-                        .HasColumnType("decimal(10,2)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("cashbacklote", (string)null);
-                });
-
             modelBuilder.Entity("ProjetoPontos.Models.Cliente", b =>
                 {
                     b.Property<string>("Cpf")
@@ -87,9 +54,6 @@ namespace PontoCoinsApiNovo.Migrations
 
                     b.Property<DateTime?>("DataCadastro")
                         .IsRequired()
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("DataNascimento")
                         .HasColumnType("datetime(6)");
 
                     b.Property<DateTime?>("DataUltimaMovimentacao")
@@ -194,31 +158,36 @@ namespace PontoCoinsApiNovo.Migrations
 
             modelBuilder.Entity("ProjetoPontos.Models.Usuario", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+                    b.Property<string>("Cpf")
+                        .HasColumnType("varchar(255)");
 
                     b.Property<string>("Cargo")
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<DateTime>("DataCadastro")
+                    b.Property<DateTime?>("DataCadastro")
+                        .IsRequired()
                         .HasColumnType("datetime(6)");
 
-                    b.Property<string>("PasswordHash")
+                    b.Property<DateTime?>("DataUltimaMovimentacao")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Nome")
                         .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PasswordHash")
                         .HasColumnType("longtext");
 
                     b.Property<string>("UserName")
                         .IsRequired()
-                        .HasColumnType("varchar(255)");
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserName")
-                        .IsUnique();
+                    b.HasKey("Cpf");
 
                     b.ToTable("Usuarios");
                 });

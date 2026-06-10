@@ -53,6 +53,9 @@ namespace ProjetoPontos.Controllers
                 return usuario; // Autenticação bem-sucedida
             }
 
+            Console.WriteLine($"DEBUG usuario encontrado: {usuario != null}");
+            Console.WriteLine($"DEBUG senha verificada: {usuario?.VerificarSenha(password)}");
+            Console.WriteLine($"DEBUG hash no banco: {usuario?.PasswordHash}");
             return null; // Usuário não encontrado ou senha incorreta
         }
         private Cliente AutenticarCliente(string username, string password)

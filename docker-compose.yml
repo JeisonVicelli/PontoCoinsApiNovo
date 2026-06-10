@@ -1,0 +1,86 @@
+version: "3.9"
+
+services:
+
+  # ── MySQL 8 (PontoCoins + n8n) ──────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: pontocoins-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-#LojaGaia2011}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-PontoCoinsApiNovo}
+      MYSQL_USER: ${MYSQL_USER:-pontocoins}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-PontoCoins2025!}
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - pontocoins-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "--password=${MYSQL_ROOT_PASSWORD:-#LojaGaia2011}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── n8n (automação / WhatsApp alerts) ───────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: pontocoins-n8n
+    restart: unless-stopped
+    environment:
+      DB_TYPE: mysqldb
+      DB_MYSQLDB_HOST: mysql
+      DB_MYSQLDB_PORT: 3306
+      DB_MYSQLDB_DATABASE: n8n
+      DB_MYSQLDB_USER: root
+      DB_MYSQLDB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-#LojaGaia2011}
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-n8nPontoCoins!}
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://${N8N_HOST:-localhost}:5678/
+      GENERIC_TIMEZONE: America/Sao_Paulo
+    volumes:
+      - n8n_data:/home/node/.n8n
+    ports:
+      - "5678:5678"
+    networks:
+      - pontocoins-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # ── API .NET 8 (PontoCoins) ─────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pontocoins-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5181
+      ConnectionStrings__DefaultConnection: "server=mysql;port=3306;database=${MYSQL_DATABASE:-PontoCoinsApiNovo};uid=root;pwd=${MYSQL_ROOT_PASSWORD:-#LojaGaia2011};"
+    ports:
+      - "5181:5181"
+    networks:
+      - pontocoins-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+# ── Volumes persistentes ─────────────────────────────────────────
+volumes:
+  mysql_data:
+  n8n_data:
+
+# ── Rede interna ─────────────────────────────────────────────────
+networks:
+  pontocoins-net:
+    driver: bridge

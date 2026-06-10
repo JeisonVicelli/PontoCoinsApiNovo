@@ -4,88 +4,80 @@ using ProjetoPontos.Data;
 using ProjetoPontos.Models;
 
 namespace ProjetoPontos.Controllers;
+
 [ApiController]
 [Route("[controller]")]
 public class UsuarioController : ControllerBase
 {
-    private LojaDbContext _dbContext;
+    private readonly LojaDbContext _dbContext;
+
     public UsuarioController(LojaDbContext dbContext)
     {
         _dbContext = dbContext;
     }
+
     [HttpPost]
-    [Route("cadastrar")]   
-    public async Task<IActionResult> CadastrarUsuario([FromBody]Usuario usuario)
+    [Route("cadastrar")]
+    public async Task<IActionResult> CadastrarUsuario([FromBody] Usuario usuario)
     {
-        if(_dbContext is null) return NotFound("DbContext não encontrado.");
-        if(usuario is null) return BadRequest("Usuario Inválido.");
-        if(_dbContext.Usuarios is null) return NotFound("Tabela de Usuario não encontrado.");
+        if (_dbContext.Usuarios is null) return NotFound("Tabela de Usuario não encontrada.");
+        if (usuario is null) return BadRequest("Usuario inválido.");
         usuario.DefinirSenha(usuario.PasswordHash);
+        usuario.DataCadastro = DateTime.UtcNow;
         await _dbContext.AddAsync(usuario);
         await _dbContext.SaveChangesAsync();
-        return Created("",usuario);
+        return Created("", usuario);
     }
+
     [HttpGet]
     [Route("listar")]
     public async Task<ActionResult<IEnumerable<Usuario>>> Listar()
     {
-         if(_dbContext is null) return NotFound("DbContext não encontrado.");
-        if(_dbContext.Usuarios is null) return NotFound();
-
-        var usuario = await _dbContext.Usuarios.ToListAsync();
-
-        // Se deseja incluir clientes com atributos nulos
-        return Ok(usuario);
+        if (_dbContext.Usuarios is null) return NotFound();
+        return Ok(await _dbContext.Usuarios.ToListAsync());
     }
+
     [HttpGet]
-    [Route("buscar/{cpf}")]
-    public async Task<ActionResult<Usuario>> Buscar(string cpf)
+    [Route("buscar/{id}")]
+    public async Task<ActionResult<Usuario>> Buscar(int id)
     {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Usuarios is null) return NotFound();
-        var usuarioTemp = await _dbContext.Usuarios.FindAsync(cpf);
-        if(usuarioTemp is null) return NotFound();
-    return usuarioTemp;
+        if (_dbContext.Usuarios is null) return NotFound();
+        var usuario = await _dbContext.Usuarios.FindAsync(id);
+        if (usuario is null) return NotFound();
+        return usuario;
     }
+
     [HttpPut]
     [Route("alterar")]
-    public async Task<ActionResult> Alterar(Usuario usuario)
+    public async Task<ActionResult> Alterar([FromBody] Usuario usuario)
     {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Usuarios is null) return NotFound();
-        //var clienteTemp = await _dbContext.Cliente.FindAsync(cliente.Cpf);
-        //if(clienteTemp is null) return NotFound();
-        _dbContext.Usuarios.Update(usuario);    
+        if (_dbContext.Usuarios is null) return NotFound();
+        _dbContext.Usuarios.Update(usuario);
         await _dbContext.SaveChangesAsync();
-        return Ok();  
+        return Ok();
     }
 
     [HttpPatch]
-    [Route("mudarDescricao/{cpf}")]
-    public async Task<ActionResult>MudarDescricao(string cpf,[FromForm] string Nome)
+    [Route("mudarCargo/{id}")]
+    public async Task<ActionResult> MudarCargo(int id, [FromForm] string cargo)
     {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Usuarios is null) return NotFound();
-        var usuarioTemp = await _dbContext.Usuarios.FindAsync(cpf);
-        if(usuarioTemp is null) return NotFound();
-        usuarioTemp.Nome = Nome;                   
+        if (_dbContext.Usuarios is null) return NotFound();
+        var usuario = await _dbContext.Usuarios.FindAsync(id);
+        if (usuario is null) return NotFound();
+        usuario.Cargo = cargo;
         await _dbContext.SaveChangesAsync();
-        return Ok();  
+        return Ok();
     }
+
     [HttpDelete]
-    [Route("excluir/{cpf}")]
-    public async Task<ActionResult>Excluir(string cpf,[FromForm] string descricao)
+    [Route("excluir/{id}")]
+    public async Task<ActionResult> Excluir(int id)
     {
-        if(_dbContext is null) return NotFound();
-        if(_dbContext.Usuarios is null) return NotFound();
-        var usuarioTemp = await _dbContext.Usuarios.FindAsync(cpf);
-        if(usuarioTemp is null) return NotFound();    
-        _dbContext.Usuarios.Remove(usuarioTemp);                 
+        if (_dbContext.Usuarios is null) return NotFound();
+        var usuario = await _dbContext.Usuarios.FindAsync(id);
+        if (usuario is null) return NotFound();
+        _dbContext.Usuarios.Remove(usuario);
         await _dbContext.SaveChangesAsync();
-        return Ok("Usuario excluido com Sucesso!");  
+        return Ok("Usuario excluido com Sucesso!");
     }
-     internal static void Buscar()
-  {
-    throw new NotImplementedException();
-  }
 }

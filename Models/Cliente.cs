@@ -9,7 +9,9 @@ namespace ProjetoPontos.Models
         [Required(ErrorMessage = "O campo Número de Telefone é obrigatório.")]
         public string? NumeroTelefone { get; set; }  
         public int? Pontos { get; set; }
-        public decimal ValorTotalGasto { get; set; }      
+        public decimal ValorTotalGasto { get; set; }
+        public decimal CashbackAcumulado { get; set; }
+
         public bool IsTelefoneValido()
         {
             // Validação de telefone: Aceita números, parênteses, espaços e hífens
@@ -30,6 +32,18 @@ namespace ProjetoPontos.Models
 
         ValorTotalGasto += valorGasto;
     }
+
+        public void CreditarCashback(decimal valor)
+        {
+            if (valor > 0) CashbackAcumulado += valor;
+        }
+
+        public bool DebitarCashback(decimal valor)
+        {
+            if (valor <= 0 || valor > CashbackAcumulado) return false;
+            CashbackAcumulado -= valor;
+            return true;
+        }
     }
 }
 
