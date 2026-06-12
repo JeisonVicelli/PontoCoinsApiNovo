@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjetoPontos.Data;
+using ProjetoPontos.Filters;
 using ProjetoPontos.Models;
 using ProjetoPontos.Services;
 
@@ -16,12 +18,14 @@ public class ClienteController : ControllerBase
     private readonly LojaDbContext _dbContext;
     private readonly WhatsAppService _whatsapp;
     private readonly ClienteConsultaService _consultaSvc;
+    private readonly ILogger<ClienteController> _logger;
 
-    public ClienteController(LojaDbContext dbContext, WhatsAppService whatsapp, ClienteConsultaService consultaSvc)
+    public ClienteController(LojaDbContext dbContext, WhatsAppService whatsapp, ClienteConsultaService consultaSvc, ILogger<ClienteController> logger)
     {
         _dbContext   = dbContext;
         _whatsapp    = whatsapp;
         _consultaSvc = consultaSvc;
+        _logger      = logger;
     }
 
     [HttpPost("cadastrar")]
@@ -31,9 +35,11 @@ public class ClienteController : ControllerBase
         if (cliente is null) return BadRequest("Dados do cliente inválidos.");
         if (_dbContext.Clientes is null) return StatusCode(500, "Tabela de clientes não encontrada.");
 
+        var senhaTemporaria = GerarSenhaTemporaria();
+
         try
         {
-            cliente.DefinirSenha(cliente.PasswordHash!);
+            cliente.DefinirSenhaTemporaria(senhaTemporaria);
         }
         catch (ArgumentException ex)
         {
@@ -55,17 +61,24 @@ public class ClienteController : ControllerBase
             {
                 if (loja is not null && !string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
                 {
-                    await _whatsapp.EnviarBoasVindasAsync(
-                        loja,
-                        cliente.Nome ?? "Cliente",
-                        cliente.NumeroTelefone);
+                    var enviado = await _whatsapp.EnviarBoasVindasAsync(loja, cliente, senhaTemporaria);
+                    if (!enviado)
+                        _logger.LogWarning("Não foi possível enviar a senha temporária por WhatsApp para o cliente {Cpf}.", cliente.Cpf);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Falha ao enviar a senha temporária por WhatsApp para o cliente {Cpf}.", cliente.Cpf);
+            }
         });
 
         return Created("", cliente);
     }
+
+    // Gera uma senha temporária de 6 dígitos numéricos para o cadastro inline no balcão.
+    // O cliente é obrigado a trocá-la no primeiro acesso (PrecisaTrocarSenha).
+    private static string GerarSenhaTemporaria()
+        => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 
     [HttpGet("listar")]
     [Authorize(Policy = "Funcionario")]
@@ -124,6 +137,7 @@ public class ClienteController : ControllerBase
     // ─────────────────────────────────────────────
     [HttpGet("meu-saldo")]
     [Authorize(Policy = "Cliente")]
+    [ExigeSenhaDefinida]
     public async Task<IActionResult> MeuSaldo()
     {
         if (_dbContext.Clientes is null) return NotFound();
@@ -143,6 +157,7 @@ public class ClienteController : ControllerBase
     // ─────────────────────────────────────────────
     [HttpGet("meu-extrato")]
     [Authorize(Policy = "Cliente")]
+    [ExigeSenhaDefinida]
     public async Task<IActionResult> MeuExtrato([FromQuery] int top = 5)
     {
         var cpf = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -157,6 +172,7 @@ public class ClienteController : ControllerBase
     // ─────────────────────────────────────────────
     [HttpGet("meus-alertas")]
     [Authorize(Policy = "Cliente")]
+    [ExigeSenhaDefinida]
     public async Task<IActionResult> MeusAlertas([FromQuery] int diasAlerta = 15)
     {
         if (_dbContext.Clientes is null) return NotFound();
@@ -169,4 +185,46 @@ public class ClienteController : ControllerBase
 
         return Ok(await _consultaSvc.ObterExpiracaoAsync(cliente, diasAlerta));
     }
+
+    // ─────────────────────────────────────────────
+    //  POST trocar-senha
+    //  Troca a senha do próprio cliente autenticado e limpa PrecisaTrocarSenha
+    // ─────────────────────────────────────────────
+    [HttpPost("trocar-senha")]
+    [Authorize(Policy = "Cliente")]
+    public async Task<IActionResult> TrocarSenha([FromBody] TrocarSenhaModel model)
+    {
+        if (_dbContext.Clientes is null) return NotFound();
+        if (model is null || string.IsNullOrWhiteSpace(model.SenhaAtual) || string.IsNullOrWhiteSpace(model.NovaSenha))
+            return BadRequest("Informe a senha atual e a nova senha.");
+
+        var cpf = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(cpf)) return Unauthorized();
+
+        var cliente = await _dbContext.Clientes.FindAsync(cpf);
+        if (cliente is null) return NotFound("Cliente não encontrado.");
+
+        if (!cliente.VerificarSenha(model.SenhaAtual))
+            return BadRequest("Senha atual incorreta.");
+
+        try
+        {
+            cliente.DefinirSenha(model.NovaSenha);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+
+        cliente.PrecisaTrocarSenha = false;
+        await _dbContext.SaveChangesAsync();
+
+        return Ok("Senha alterada com sucesso.");
+    }
+}
+
+public class TrocarSenhaModel
+{
+    public string SenhaAtual { get; set; } = string.Empty;
+    public string NovaSenha { get; set; } = string.Empty;
 }

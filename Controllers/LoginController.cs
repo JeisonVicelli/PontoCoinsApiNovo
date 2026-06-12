@@ -55,7 +55,8 @@ namespace ProjetoPontos.Controllers
                     userName = cliente.UserName,
                     nome = cliente.Nome,
                     cargo = "Cliente",
-                    lojaId = cliente.LojaId
+                    lojaId = cliente.LojaId,
+                    precisaTrocarSenha = cliente.PrecisaTrocarSenha
                 });
             }
 

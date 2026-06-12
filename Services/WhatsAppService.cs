@@ -53,17 +53,16 @@ public class WhatsAppService
         }
     }
 
-    // ── 1. Boas-vindas ao cadastrar ──
-    public async Task EnviarBoasVindasAsync(Loja loja, string nome, string telefone)
+    // ── 1. Boas-vindas ao cadastrar (com senha temporária) ──
+    public async Task<bool> EnviarBoasVindasAsync(Loja loja, Cliente cliente, string senhaTemporaria)
     {
+        var nome = cliente.Nome ?? "Cliente";
         var msg =
-            $"Olá, {nome}! 👋\n\n" +
-            $"Seja bem-vindo(a) ao *PontoCoins* da *{loja.Nome}*! 🛹\n\n" +
-            $"A partir de agora, cada compra acumula *pontos* e *cashback* " +
-            $"para você usar quando quiser.\n\n" +
-            $"Qualquer dúvida é só aparecer no balcão. Conte com a gente! 🤙";
+            $"E aí, {nome}! 🛹 Seu cadastro no PontoCoins da {loja.Nome} tá pronto — bem-vindo ao squad!\n\n" +
+            $"Sua senha temporária de acesso é: *{senhaTemporaria}*\n\n" +
+            $"Acessa e troca pra uma senha sua assim que der, é rapidinho. Bons rolês e até a próxima!";
 
-        await EnviarMensagemAsync(loja, telefone, msg);
+        return await EnviarMensagemAsync(loja, cliente.NumeroTelefone ?? "", msg);
     }
 
     // ── 2. Confirmação de venda (mostra só o que foi gerado) ──

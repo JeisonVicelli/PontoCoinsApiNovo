@@ -11,6 +11,6 @@ public class Login
     public string? Username { get; set; }
 
     [Required(ErrorMessage = "O campo Password é obrigatório.")]
-    [StringLength(100, MinimumLength = 8, ErrorMessage = "O campo Password deve ter pelo menos 8 caracteres.")]
+    [StringLength(100, MinimumLength = 6, ErrorMessage = "O campo Password deve ter pelo menos 6 caracteres.")]
     public string? Password { get; set; }
 }

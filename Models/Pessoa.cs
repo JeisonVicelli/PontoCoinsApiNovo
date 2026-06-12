@@ -76,10 +76,22 @@ namespace ProjetoPontos.Models
         passwordHash = Convert.ToBase64String(hashedBytes); // campo privado direto — evita re-validar o hash
     }
 
+    // Senha temporária gerada pelo sistema (ex.: 6 dígitos numéricos no cadastro inline) — não passa
+    // pela validação de senha "forte", pois o cliente é obrigado a trocá-la (ver PrecisaTrocarSenha).
+    public void DefinirSenhaTemporaria(string senha)
+    {
+        if (string.IsNullOrWhiteSpace(senha))
+            throw new ArgumentException("Senha inválida.");
+
+        using var sha256 = SHA256.Create();
+        byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(senha));
+        passwordHash = Convert.ToBase64String(hashedBytes);
+    }
+
     // Método para verificar se a senha está correta
     public bool VerificarSenha(string senha)
     {
-        if (string.IsNullOrWhiteSpace(senha) || !IsPasswordValid(senha))
+        if (string.IsNullOrWhiteSpace(senha))
         {
             return false;
         }
