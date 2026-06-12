@@ -109,8 +109,8 @@ public class WhatsAppService
     {
         var prazo = diasRestantes == 1 ? "amanhã" : $"em *{diasRestantes} dias*";
         var msg =
-            $"⚠️ *{loja.Nome}*\n\n" +
-            $"Atenção, {nome}!\n\n" +
+            $"🛹 *{loja.Nome}*\n\n" +
+            $"E aí, {nome}!\n\n" +
             $"Você tem *R$ {valorExpirando:F2}* em cashback que vence {prazo}.\n\n" +
             $"Passe na loja e use antes de expirar! 🛹";
 
@@ -123,8 +123,8 @@ public class WhatsAppService
     {
         var prazo = diasRestantes == 1 ? "amanhã" : $"em *{diasRestantes} dias*";
         var msg =
-            $"⚠️ *{loja.Nome}*\n\n" +
-            $"Atenção, {nome}!\n\n" +
+            $"🛹 *{loja.Nome}*\n\n" +
+            $"E aí, {nome}!\n\n" +
             $"Seus *{pontos} pontos* vencem {prazo}.\n\n" +
             $"Venha trocar por brindes antes que expirem! 🛹🎁";
 
