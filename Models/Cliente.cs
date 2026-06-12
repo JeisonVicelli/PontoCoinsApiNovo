@@ -18,6 +18,8 @@ namespace ProjetoPontos.Models
         [ForeignKey("LojaId")]
         public Loja? Loja { get; set; }
 
+        public bool PrecisaTrocarSenha { get; set; } = true;
+
         public bool IsTelefoneValido()
         {
             // Validação de telefone: Aceita números, parênteses, espaços e hífens

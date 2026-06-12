@@ -32,6 +32,7 @@ builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ProjetoPontos.Services.ITenantProvider, ProjetoPontos.Services.TenantProvider>();
 builder.Services.AddScoped<ProjetoPontos.Services.CashbackService>();
+builder.Services.AddScoped<ProjetoPontos.Services.ClienteConsultaService>();
 builder.Services.AddSingleton<ProjetoPontos.Services.TokenService>();
 builder.Services.AddHttpClient<ProjetoPontos.Services.WhatsAppService>();
 builder.Services.AddHostedService<ProjetoPontos.Services.AlertaExpiracaoService>();
@@ -53,7 +54,11 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!))
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Funcionario", policy => policy.RequireClaim("TipoConta", "Usuario"));
+    options.AddPolicy("Cliente", policy => policy.RequireClaim("TipoConta", "Cliente"));
+});
 
 // 3. Adiciona Endpoints API Explorer (necessário para Swagger/OpenAPI)
 builder.Services.AddEndpointsApiExplorer();

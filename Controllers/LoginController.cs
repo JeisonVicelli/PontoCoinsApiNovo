@@ -31,7 +31,7 @@ namespace ProjetoPontos.Controllers
             var usuario = _dbContext.Usuarios.IgnoreQueryFilters().FirstOrDefault(u => u.UserName == login.Username);
             if (usuario != null && usuario.VerificarSenha(login.Password))
             {
-                var token = _tokenService.GerarToken(usuario.Id.ToString(), usuario.UserName, usuario.Cargo, usuario.LojaId);
+                var token = _tokenService.GerarToken(usuario.Id.ToString(), usuario.UserName, usuario.Cargo, usuario.LojaId, "Usuario");
                 return Ok(new
                 {
                     token,
@@ -46,7 +46,7 @@ namespace ProjetoPontos.Controllers
             var cliente = _dbContext.Clientes.IgnoreQueryFilters().FirstOrDefault(c => c.UserName == login.Username);
             if (cliente != null && cliente.VerificarSenha(login.Password))
             {
-                var token = _tokenService.GerarToken(cliente.Cpf!, cliente.UserName!, "Cliente", cliente.LojaId);
+                var token = _tokenService.GerarToken(cliente.Cpf!, cliente.UserName!, "Cliente", cliente.LojaId, "Cliente");
                 return Ok(new
                 {
                     token,

@@ -15,7 +15,7 @@ public class TokenService
         _config = config;
     }
 
-    public string GerarToken(string id, string userName, string cargo, int lojaId)
+    public string GerarToken(string id, string userName, string cargo, int lojaId, string tipoConta)
     {
         var jwtSection = _config.GetSection("Jwt");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!));
@@ -28,6 +28,7 @@ public class TokenService
             new Claim(ClaimTypes.Name, userName),
             new Claim(ClaimTypes.Role, cargo),
             new Claim("LojaId", lojaId.ToString()),
+            new Claim("TipoConta", tipoConta),
         };
 
         var token = new JwtSecurityToken(

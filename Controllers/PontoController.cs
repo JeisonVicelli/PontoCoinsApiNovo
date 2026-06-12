@@ -12,7 +12,7 @@ namespace Controles
 {
     [Route("[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Policy = "Funcionario")]
     public class ControlePonto : ControllerBase
     {
         private const string ClienteNaoEncontrado = "Cliente não encontrado.";
@@ -20,12 +20,14 @@ namespace Controles
         private readonly LojaDbContext _dbContext;
         private readonly CashbackService _cashbackSvc;
         private readonly WhatsAppService _whatsapp;
+        private readonly ClienteConsultaService _consultaSvc;
 
-        public ControlePonto(LojaDbContext dbContext, CashbackService cashbackSvc, WhatsAppService whatsapp)
+        public ControlePonto(LojaDbContext dbContext, CashbackService cashbackSvc, WhatsAppService whatsapp, ClienteConsultaService consultaSvc)
         {
             _dbContext   = dbContext;
             _cashbackSvc = cashbackSvc;
             _whatsapp    = whatsapp;
+            _consultaSvc = consultaSvc;
         }
 
         // ─────────────────────────────────────────────
@@ -40,26 +42,7 @@ namespace Controles
             var cliente = await _dbContext.Clientes.FindAsync(cpf);
             if (cliente is null) return NotFound(ClienteNaoEncontrado);
 
-            await _cashbackSvc.SincronizarSaldoClienteAsync(cliente);
-            await _dbContext.SaveChangesAsync();
-
-            var nivel         = ConfiguracoesFidelidade.ObterNivel(cliente.ValorTotalGasto);
-            var multiplicador = ConfiguracoesFidelidade.ObterMultiplicador(cliente.ValorTotalGasto);
-            var pontosEmDobro = ConfiguracoesFidelidade.EhDiaDePontosEmDobro();
-
-            return Ok(new {
-                cpf                = cliente.Cpf,
-                nome               = cliente.Nome,
-                numeroTelefone     = cliente.NumeroTelefone,
-                pontos             = cliente.Pontos ?? 0,
-                cashbackAcumulado  = cliente.CashbackAcumulado,
-                valorTotalGasto    = cliente.ValorTotalGasto,
-                dataNascimento     = cliente.DataNascimento,
-                dataCadastro       = cliente.DataCadastro,
-                nivel,
-                multiplicador,
-                pontosEmDobro
-            });
+            return Ok(await _consultaSvc.ObterSaldoAsync(cliente));
         }
 
         // ─────────────────────────────────────────────
@@ -283,27 +266,7 @@ namespace Controles
             var cliente = await _dbContext.Clientes.FindAsync(cpf);
             if (cliente is null) return NotFound(ClienteNaoEncontrado);
 
-            // Data de referência: última entrada no histórico, ou DataCadastro como fallback
-            DateTime dataRef = await ObterDataUltimaMovimentacaoAsync(cpf)
-                               ?? cliente.DataCadastro
-                               ?? DateTime.UtcNow;
-
-            DateTime dataExpiracao = dataRef.AddDays(ConfiguracoesFidelidade.ValidadeCashbackDias);
-            int diasRestantes      = (int)(dataExpiracao.Date - DateTime.UtcNow.Date).TotalDays;
-            bool expiraEmBreve     = diasRestantes >= 0 && diasRestantes <= diasAlerta;
-
-            return Ok(new
-            {
-                cpf,
-                cashbackAcumulado    = cliente.CashbackAcumulado,
-                pontosAcumulados     = cliente.Pontos ?? 0,
-                dataExpiracao        = dataExpiracao.ToString(FmtData),
-                diasRestantes,
-                expiraEmBreve,
-                alerta = expiraEmBreve && cliente.CashbackAcumulado > 0
-                    ? $"Atenção: R$ {cliente.CashbackAcumulado:F2} de cashback expiram em {diasRestantes} dia(s)!"
-                    : null
-            });
+            return Ok(await _consultaSvc.ObterExpiracaoAsync(cliente, diasAlerta));
         }
 
         // ─────────────────────────────────────────────
@@ -313,25 +276,7 @@ namespace Controles
         [HttpGet("extrato/{cpf}")]
         public async Task<IActionResult> Extrato(string cpf, [FromQuery] int top = 5)
         {
-            if (_dbContext.Historico is null)
-                return Ok(new object[] { });
-
-            try
-            {
-                var linhas = await _dbContext.Historico
-                    .Where(h => h.CpfCliente == cpf)
-                    .OrderByDescending(h => h.Data)
-                    .Take(top)
-                    .Select(h => new { h.Data, h.Operacao, h.Valor, h.PontosMovimentados })
-                    .ToListAsync();
-
-                return Ok(linhas);
-            }
-            catch
-            {
-                // tabela ainda não criada — rode a migration
-                return Ok(new object[] { });
-            }
+            return Ok(await _consultaSvc.ObterExtratoAsync(cpf, top));
         }
 
         // ─────────────────────────────────────────────
@@ -446,20 +391,6 @@ namespace Controles
                 await _dbContext.SaveChangesAsync();
             }
             catch { /* tabela não criada ainda — silencioso */ }
-        }
-
-        private async Task<DateTime?> ObterDataUltimaMovimentacaoAsync(string cpf)
-        {
-            if (_dbContext.Historico is null) return null;
-            try
-            {
-                return await _dbContext.Historico
-                    .Where(h => h.CpfCliente == cpf)
-                    .OrderByDescending(h => h.Data)
-                    .Select(h => (DateTime?)h.Data)
-                    .FirstOrDefaultAsync();
-            }
-            catch { return null; }
         }
     }
 

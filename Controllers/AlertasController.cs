@@ -8,7 +8,7 @@ namespace ProjetoPontos.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-[Authorize]
+[Authorize(Policy = "Funcionario")]
 public class AlertasController : ControllerBase
 {
     private readonly LojaDbContext    _db;

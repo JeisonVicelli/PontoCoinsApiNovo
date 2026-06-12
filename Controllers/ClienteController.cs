@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,14 +15,17 @@ public class ClienteController : ControllerBase
 {
     private readonly LojaDbContext _dbContext;
     private readonly WhatsAppService _whatsapp;
+    private readonly ClienteConsultaService _consultaSvc;
 
-    public ClienteController(LojaDbContext dbContext, WhatsAppService whatsapp)
+    public ClienteController(LojaDbContext dbContext, WhatsAppService whatsapp, ClienteConsultaService consultaSvc)
     {
-        _dbContext = dbContext;
-        _whatsapp  = whatsapp;
+        _dbContext   = dbContext;
+        _whatsapp    = whatsapp;
+        _consultaSvc = consultaSvc;
     }
 
     [HttpPost("cadastrar")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<IActionResult> Cadastrar([FromBody] Cliente cliente)
     {
         if (cliente is null) return BadRequest("Dados do cliente inválidos.");
@@ -64,6 +68,7 @@ public class ClienteController : ControllerBase
     }
 
     [HttpGet("listar")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult<IEnumerable<Cliente>>> Listar()
     {
         if (_dbContext.Clientes is null) return NotFound();
@@ -71,6 +76,7 @@ public class ClienteController : ControllerBase
     }
 
     [HttpGet("buscar/{cpf}")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult<Cliente>> Buscar(string cpf)
     {
         if (_dbContext.Clientes is null) return NotFound();
@@ -79,6 +85,7 @@ public class ClienteController : ControllerBase
     }
 
     [HttpPut("alterar")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult> Alterar([FromBody] Cliente cliente)
     {
         if (_dbContext.Clientes is null) return NotFound();
@@ -88,6 +95,7 @@ public class ClienteController : ControllerBase
     }
 
     [HttpPatch("mudarDescricao/{cpf}")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult> MudarDescricao(string cpf, [FromForm] string Nome)
     {
         if (_dbContext.Clientes is null) return NotFound();
@@ -99,6 +107,7 @@ public class ClienteController : ControllerBase
     }
 
     [HttpDelete("excluir/{cpf}")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult> Excluir(string cpf)
     {
         if (_dbContext.Clientes is null) return NotFound();
@@ -107,5 +116,57 @@ public class ClienteController : ControllerBase
         _dbContext.Clientes.Remove(cliente);
         await _dbContext.SaveChangesAsync();
         return Ok("Cliente excluído com sucesso.");
+    }
+
+    // ─────────────────────────────────────────────
+    //  GET meu-saldo
+    //  Saldo/cashback do próprio cliente autenticado
+    // ─────────────────────────────────────────────
+    [HttpGet("meu-saldo")]
+    [Authorize(Policy = "Cliente")]
+    public async Task<IActionResult> MeuSaldo()
+    {
+        if (_dbContext.Clientes is null) return NotFound();
+
+        var cpf = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(cpf)) return Unauthorized();
+
+        var cliente = await _dbContext.Clientes.FindAsync(cpf);
+        if (cliente is null) return NotFound("Cliente não encontrado.");
+
+        return Ok(await _consultaSvc.ObterSaldoAsync(cliente));
+    }
+
+    // ─────────────────────────────────────────────
+    //  GET meu-extrato
+    //  Últimas movimentações do próprio cliente autenticado
+    // ─────────────────────────────────────────────
+    [HttpGet("meu-extrato")]
+    [Authorize(Policy = "Cliente")]
+    public async Task<IActionResult> MeuExtrato([FromQuery] int top = 5)
+    {
+        var cpf = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(cpf)) return Unauthorized();
+
+        return Ok(await _consultaSvc.ObterExtratoAsync(cpf, top));
+    }
+
+    // ─────────────────────────────────────────────
+    //  GET meus-alertas
+    //  Alerta de expiração de cashback do próprio cliente autenticado
+    // ─────────────────────────────────────────────
+    [HttpGet("meus-alertas")]
+    [Authorize(Policy = "Cliente")]
+    public async Task<IActionResult> MeusAlertas([FromQuery] int diasAlerta = 15)
+    {
+        if (_dbContext.Clientes is null) return NotFound();
+
+        var cpf = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(cpf)) return Unauthorized();
+
+        var cliente = await _dbContext.Clientes.FindAsync(cpf);
+        if (cliente is null) return NotFound("Cliente não encontrado.");
+
+        return Ok(await _consultaSvc.ObterExpiracaoAsync(cliente, diasAlerta));
     }
 }

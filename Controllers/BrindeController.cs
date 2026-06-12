@@ -17,6 +17,7 @@ public class BrindeController : ControllerBase
     }
     [HttpPost]
     [Route("cadastrar")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<IActionResult> Criar(Brinde brinde)
     {
         if(_dbContext is null) return NotFound();
@@ -45,6 +46,7 @@ public class BrindeController : ControllerBase
     }
     [HttpPut]
     [Route("alterar")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult> Alterar(Brinde brinde)
     {
         if(_dbContext is null) return NotFound();
@@ -58,6 +60,7 @@ public class BrindeController : ControllerBase
 
     [HttpPatch]
     [Route("mudarDescricao/{id}")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult>MudarDescricao(int id,[FromForm] string nome)
     {
         if(_dbContext is null) return NotFound();
@@ -70,6 +73,7 @@ public class BrindeController : ControllerBase
     }
     [HttpDelete]
     [Route("excluir/{id}")]
+    [Authorize(Policy = "Funcionario")]
     public async Task<ActionResult>Excluir(int id,[FromForm] string nome)
     {
         if(_dbContext is null) return NotFound();

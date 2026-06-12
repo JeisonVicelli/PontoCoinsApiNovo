@@ -10,7 +10,7 @@ namespace Controles
 {
     [Route("[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Policy = "Funcionario")]
     public class PedidoController : ControllerBase
     {
         private readonly LojaDbContext _dbContext;
