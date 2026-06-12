@@ -2,21 +2,24 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 
 namespace ProjetoPontos.Services;
 
 public class WhatsAppService
 {
     private readonly HttpClient _http;
-    private const string INSTANCE_ID  = "3F31591D4F7BD1BE3B218E0A56E81C5F";
-    private const string TOKEN        = "2501B4A0870C838D575D8E67";
-    private const string CLIENT_TOKEN = "F6e75bbb8ccdc4429a4f37ebb333c59b6S";
-    private const string BASE_URL     = "https://api.z-api.io/instances";
+    private readonly string _instanceId;
+    private readonly string _token;
+    private const string BASE_URL = "https://api.z-api.io/instances";
 
-    public WhatsAppService(HttpClient http)
+    public WhatsAppService(HttpClient http, IConfiguration config)
     {
         _http = http;
-        _http.DefaultRequestHeaders.Add("Client-Token", CLIENT_TOKEN);
+        _instanceId = config["ZApi:InstanceId"] ?? throw new InvalidOperationException("ZApi:InstanceId não configurado.");
+        _token = config["ZApi:Token"] ?? throw new InvalidOperationException("ZApi:Token não configurado.");
+        var clientToken = config["ZApi:ClientToken"] ?? throw new InvalidOperationException("ZApi:ClientToken não configurado.");
+        _http.DefaultRequestHeaders.Add("Client-Token", clientToken);
     }
 
     // ── Envio base ──
@@ -24,7 +27,7 @@ public class WhatsAppService
     {
         try
         {
-            var url     = $"{BASE_URL}/{INSTANCE_ID}/token/{TOKEN}/send-text";
+            var url     = $"{BASE_URL}/{_instanceId}/token/{_token}/send-text";
             var numero  = LimparNumero(telefone);
             if (string.IsNullOrEmpty(numero)) return false;
 

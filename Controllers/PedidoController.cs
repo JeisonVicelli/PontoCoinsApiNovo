@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjetoPontos.Data;
@@ -9,6 +10,7 @@ namespace Controles
 {
     [Route("[controller]")]
     [ApiController]
+    [Authorize]
     public class PedidoController : ControllerBase
     {
         private readonly LojaDbContext _dbContext;
@@ -34,24 +36,6 @@ namespace Controles
                 return BadRequest("Erro ao adicionar o pedido: " + e.Message);
             }
         }
-
-        [HttpPost]
-        [Route("adicionarBrinde")]
-        public IActionResult AdicionarBrinde(Brinde brinde)
-        {
-            if (brinde == null)
-            {
-                return BadRequest("Não há pedido em andamento.");
-            }
-
-            if (PedidoController.pedido != null)
-            {
-                PedidoController.pedido.AdicionarBrinde(brinde);
-                return Ok("Brinde Adicionado com sucesso");
-            }
-             return BadRequest("Não há pedido em andamento.");
-        }
-
 
         [HttpGet]
         [Route("buscarPorId/{id}")]
@@ -86,13 +70,6 @@ namespace Controles
         {
             var pedidos = _dbContext.Pedidos.ToList();
             return Ok(pedidos);
-        }
-        
-        private static Pedido pedido;
-
-        public static void IniciarNovoPedido()
-        {
-            pedido = new Pedido();
         }
     }
 }

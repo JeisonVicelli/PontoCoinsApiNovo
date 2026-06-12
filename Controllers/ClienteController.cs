@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjetoPontos.Data;
@@ -8,6 +9,7 @@ namespace ProjetoPontos.Controllers;
 
 [ApiController]
 [Route("[controller]")]
+[Authorize]
 public class ClienteController : ControllerBase
 {
     private readonly LojaDbContext _dbContext;

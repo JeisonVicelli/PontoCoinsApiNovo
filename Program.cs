@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore; // Essencial para métodos de extensão do 
 using Microsoft.Extensions.DependencyInjection; // Necessário para IServiceCollection
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure; // NOVIDADE: Namespace correto para ServerVersion no .NET 8 com Pomelo
 using Pomelo.EntityFrameworkCore.MySql.Storage; // NOVIDADE: Namespace para ServerVersion.AutoDetect (às vezes necessário, dependendo da versão)
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 // --- Criação do Builder da Aplicação ---
 var builder = WebApplication.CreateBuilder(args);
@@ -27,8 +30,28 @@ builder.Services.AddDbContext<LojaDbContext>(options =>
 // 2. Adiciona suporte a controladores para APIs
 builder.Services.AddControllers();
 builder.Services.AddScoped<ProjetoPontos.Services.CashbackService>();
+builder.Services.AddSingleton<ProjetoPontos.Services.TokenService>();
 builder.Services.AddHttpClient<ProjetoPontos.Services.WhatsAppService>();
 builder.Services.AddHostedService<ProjetoPontos.Services.AlertaExpiracaoService>();
+
+// 2.1 Configuração de autenticação JWT
+var jwtSection = builder.Configuration.GetSection("Jwt");
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSection["Issuer"],
+            ValidAudience = jwtSection["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!))
+        };
+    });
+builder.Services.AddAuthorization();
 
 // 3. Adiciona Endpoints API Explorer (necessário para Swagger/OpenAPI)
 builder.Services.AddEndpointsApiExplorer();
@@ -68,7 +91,8 @@ app.UseHttpsRedirection();
 // Usamos a política padrão que definimos acima.
 app.UseCors(); // Não passe parâmetros aqui se você configurou uma política padrão
 
-// 4. Habilita o middleware de autorização (se você tiver autenticação/autorização)
+// 4. Habilita os middlewares de autenticação e autorização (nesta ordem)
+app.UseAuthentication();
 app.UseAuthorization();
 
 // 5. Mapeia os endpoints dos controladores (rotas da sua API)

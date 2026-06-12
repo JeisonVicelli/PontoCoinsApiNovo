@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjetoPontos.Data;
@@ -11,6 +12,7 @@ namespace Controles
 {
     [Route("[controller]")]
     [ApiController]
+    [Authorize]
     public class ControlePonto : ControllerBase
     {
         private const string ClienteNaoEncontrado = "Cliente não encontrado.";

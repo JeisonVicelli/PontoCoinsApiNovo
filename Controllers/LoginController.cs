@@ -1,10 +1,7 @@
-using System;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using ProjetoPontos.Data;
 using ProjetoPontos.Models;
-using System.Security.Cryptography;
-using System.Text;
+using ProjetoPontos.Services;
 
 namespace ProjetoPontos.Controllers
 {
@@ -13,72 +10,53 @@ namespace ProjetoPontos.Controllers
     public class LoginController : ControllerBase
     {
         private readonly LojaDbContext _dbContext;
+        private readonly TokenService _tokenService;
 
-        public LoginController(LojaDbContext dbContext)
+        public LoginController(LojaDbContext dbContext, TokenService tokenService)
         {
             _dbContext = dbContext;
+            _tokenService = tokenService;
         }
 
         [HttpPost]
         [Route("autenticar")]
         public IActionResult Autenticar([FromBody] Login login)
-    {
-      if (login == null || string.IsNullOrEmpty(login.Username) || string.IsNullOrEmpty(login.Password))
-      {
-        return BadRequest("Login inválido.");
-      }
-
-      var usuarioAutenticado = AutenticarUsuario(login.Username, login.Password);
-      if (usuarioAutenticado != null)
-      {
-        return Ok(usuarioAutenticado);
-      }      
-      var clienteAutenticado = AutenticarCliente(login.Username, login.Password);
-      if (clienteAutenticado == null)
-      {
-        return Unauthorized("Login inválido.");
-      }
-
-      return Ok(clienteAutenticado);
-    }
-
-    private Usuario AutenticarUsuario(string username, string password)
         {
-            // Consultar o banco de dados para encontrar o usuário com o username informado
-            var usuario = _dbContext.Usuarios.FirstOrDefault(u => u.UserName == username);
-
-            // Verificar se o usuário foi encontrado e se a senha corresponde
-            if (usuario != null && usuario.VerificarSenha(password))
+            if (login == null || string.IsNullOrEmpty(login.Username) || string.IsNullOrEmpty(login.Password))
             {
-                return usuario; // Autenticação bem-sucedida
+                return BadRequest("Login inválido.");
             }
 
-            Console.WriteLine($"DEBUG usuario encontrado: {usuario != null}");
-            Console.WriteLine($"DEBUG senha verificada: {usuario?.VerificarSenha(password)}");
-            Console.WriteLine($"DEBUG hash no banco: {usuario?.PasswordHash}");
-            return null; // Usuário não encontrado ou senha incorreta
-        }
-        private Cliente AutenticarCliente(string username, string password)
-        {
-            // Consultar o banco de dados para encontrar o cliente com o username informado
-            var cliente = _dbContext.Clientes.FirstOrDefault(u => u.UserName == username);
-
-            // Verificar se o usuário foi encontrado e se a senha corresponde
-            if (cliente != null && cliente.VerificarSenha(password))
+            var usuario = _dbContext.Usuarios.FirstOrDefault(u => u.UserName == login.Username);
+            if (usuario != null && usuario.VerificarSenha(login.Password))
             {
-                return cliente; // Autenticação bem-sucedida
+                var token = _tokenService.GerarToken(usuario.Id.ToString(), usuario.UserName, usuario.Cargo);
+                return Ok(new
+                {
+                    token,
+                    tipoConta = "Usuario",
+                    id = usuario.Id,
+                    userName = usuario.UserName,
+                    cargo = usuario.Cargo
+                });
             }
 
-            return null; // Usuário não encontrado ou senha incorreta
-        }
-         private bool VerificarSenha(string senha, string hashedPassword)
-        {
-            using (SHA256 sha256 = new SHA256Managed())
+            var cliente = _dbContext.Clientes.FirstOrDefault(c => c.UserName == login.Username);
+            if (cliente != null && cliente.VerificarSenha(login.Password))
             {
-                byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(senha));
-                string hashedPasswordInput = Convert.ToBase64String(hashedBytes);
-                return hashedPasswordInput == hashedPassword;
+                var token = _tokenService.GerarToken(cliente.Cpf!, cliente.UserName!, "Cliente");
+                return Ok(new
+                {
+                    token,
+                    tipoConta = "Cliente",
+                    cpf = cliente.Cpf,
+                    userName = cliente.UserName,
+                    nome = cliente.Nome,
+                    cargo = "Cliente"
+                });
             }
+
+            return Unauthorized("Login inválido.");
         }
     }
 }
