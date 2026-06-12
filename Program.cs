@@ -29,6 +29,8 @@ builder.Services.AddDbContext<LojaDbContext>(options =>
 
 // 2. Adiciona suporte a controladores para APIs
 builder.Services.AddControllers();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ProjetoPontos.Services.ITenantProvider, ProjetoPontos.Services.TenantProvider>();
 builder.Services.AddScoped<ProjetoPontos.Services.CashbackService>();
 builder.Services.AddSingleton<ProjetoPontos.Services.TokenService>();
 builder.Services.AddHttpClient<ProjetoPontos.Services.WhatsAppService>();

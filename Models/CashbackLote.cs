@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ProjetoPontos.Models;
 
 [Table("cashbacklote")]
-public class CashbackLote
+public class CashbackLote : ITenantEntity
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -28,6 +28,11 @@ public class CashbackLote
     public bool Ativo { get; set; } = true;
 
     public int? HistoricoOrigemId { get; set; }
+
+    public int LojaId { get; set; }
+
+    [ForeignKey("LojaId")]
+    public Loja? Loja { get; set; }
 
     // ── Helpers ──
     public bool EstaAtivo(DateTime agora) => Ativo && DataExpiracao > agora;

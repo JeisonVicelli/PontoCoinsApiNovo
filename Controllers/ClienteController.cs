@@ -43,13 +43,16 @@ public class ClienteController : ControllerBase
         await _dbContext.AddAsync(cliente);
         await _dbContext.SaveChangesAsync();
 
+        var loja = await _dbContext.Lojas!.FindAsync(cliente.LojaId);
+
         _ = Task.Run(async () =>
         {
             try
             {
-                if (!string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
+                if (loja is not null && !string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
                 {
                     await _whatsapp.EnviarBoasVindasAsync(
+                        loja,
                         cliente.Nome ?? "Cliente",
                         cliente.NumeroTelefone);
                 }

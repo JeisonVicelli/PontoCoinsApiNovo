@@ -2,62 +2,76 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using ProjetoPontos.Models;
 
 namespace ProjetoPontos.Services;
 
 public class WhatsAppService
 {
     private readonly HttpClient _http;
-    private readonly string _instanceId;
-    private readonly string _token;
+    private readonly ILogger<WhatsAppService> _logger;
     private const string BASE_URL = "https://api.z-api.io/instances";
 
-    public WhatsAppService(HttpClient http, IConfiguration config)
+    public WhatsAppService(HttpClient http, ILogger<WhatsAppService> logger)
     {
         _http = http;
-        _instanceId = config["ZApi:InstanceId"] ?? throw new InvalidOperationException("ZApi:InstanceId não configurado.");
-        _token = config["ZApi:Token"] ?? throw new InvalidOperationException("ZApi:Token não configurado.");
-        var clientToken = config["ZApi:ClientToken"] ?? throw new InvalidOperationException("ZApi:ClientToken não configurado.");
-        _http.DefaultRequestHeaders.Add("Client-Token", clientToken);
+        _logger = logger;
     }
 
     // ── Envio base ──
-    public async Task<bool> EnviarMensagemAsync(string telefone, string mensagem)
+    public async Task<bool> EnviarMensagemAsync(Loja loja, string telefone, string mensagem)
     {
+        if (string.IsNullOrWhiteSpace(loja.ZApiInstanceId) ||
+            string.IsNullOrWhiteSpace(loja.ZApiToken) ||
+            string.IsNullOrWhiteSpace(loja.ZApiClientToken))
+        {
+            _logger.LogWarning("Loja {LojaId} ({Nome}) sem credenciais Z-API configuradas — envio de WhatsApp ignorado.", loja.Id, loja.Nome);
+            return false;
+        }
+
         try
         {
-            var url     = $"{BASE_URL}/{_instanceId}/token/{_token}/send-text";
-            var numero  = LimparNumero(telefone);
+            var url    = $"{BASE_URL}/{loja.ZApiInstanceId}/token/{loja.ZApiToken}/send-text";
+            var numero = LimparNumero(telefone);
             if (string.IsNullOrEmpty(numero)) return false;
 
-            var body    = JsonSerializer.Serialize(new { phone = numero, message = mensagem });
-            var content = new StringContent(body, Encoding.UTF8, "application/json");
-            var response = await _http.PostAsync(url, content);
+            var body = JsonSerializer.Serialize(new { phone = numero, message = mensagem });
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            };
+            request.Headers.Add("Client-Token", loja.ZApiClientToken);
+
+            var response = await _http.SendAsync(request);
             return response.IsSuccessStatusCode;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Falha ao enviar mensagem WhatsApp para a loja {LojaId}.", loja.Id);
+            return false;
+        }
     }
 
     // ── 1. Boas-vindas ao cadastrar ──
-    public async Task EnviarBoasVindasAsync(string nome, string telefone)
+    public async Task EnviarBoasVindasAsync(Loja loja, string nome, string telefone)
     {
         var msg =
             $"Olá, {nome}! 👋\n\n" +
-            $"Seja bem-vindo(a) ao *PontoCoins* da *Gaia Skate & Surf*! 🛹\n\n" +
+            $"Seja bem-vindo(a) ao *PontoCoins* da *{loja.Nome}*! 🛹\n\n" +
             $"A partir de agora, cada compra acumula *pontos* e *cashback* " +
             $"para você usar quando quiser.\n\n" +
             $"Qualquer dúvida é só aparecer no balcão. Conte com a gente! 🤙";
 
-        await EnviarMensagemAsync(telefone, msg);
+        await EnviarMensagemAsync(loja, telefone, msg);
     }
 
     // ── 2. Confirmação de venda (mostra só o que foi gerado) ──
-    public async Task EnviarAtualizacaoPontosAsync(string nome, string telefone,
+    public async Task EnviarAtualizacaoPontosAsync(Loja loja, string nome, string telefone,
         int pontos, decimal cashback, string nivel)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"✅ *Gaia Skate & Surf*");
+        sb.AppendLine($"✅ *{loja.Nome}*");
         sb.AppendLine();
         sb.AppendLine($"Oi, {nome}! Sua compra foi registrada. 🛹");
         sb.AppendLine();
@@ -73,49 +87,49 @@ public class WhatsAppService
         sb.AppendLine();
         sb.Append("Obrigado pela preferência!");
 
-        await EnviarMensagemAsync(telefone, sb.ToString());
+        await EnviarMensagemAsync(loja, telefone, sb.ToString());
     }
 
     // ── 3. Resgate de pontos por brinde ──
-    public async Task EnviarResgatePontosAsync(string nome, string telefone,
+    public async Task EnviarResgatePontosAsync(Loja loja, string nome, string telefone,
         int pontosUsados, int saldoRestante)
     {
         var msg =
-            $"🎁 *Gaia Skate & Surf*\n\n" +
+            $"🎁 *{loja.Nome}*\n\n" +
             $"Oi, {nome}! Resgate confirmado.\n\n" +
             $"Pontos utilizados: *{pontosUsados} pts*\n" +
             $"Saldo restante: *{saldoRestante} pts*\n\n" +
             $"Até a próxima! 🛹";
 
-        await EnviarMensagemAsync(telefone, msg);
+        await EnviarMensagemAsync(loja, telefone, msg);
     }
 
     // ── 4. Alerta: cashback próximo do vencimento ──
-    public async Task EnviarAlertaExpiracaoAsync(string nome, string telefone,
+    public async Task EnviarAlertaExpiracaoAsync(Loja loja, string nome, string telefone,
         decimal valorExpirando, int diasRestantes)
     {
         var prazo = diasRestantes == 1 ? "amanhã" : $"em *{diasRestantes} dias*";
         var msg =
-            $"⚠️ *Gaia Skate & Surf*\n\n" +
+            $"⚠️ *{loja.Nome}*\n\n" +
             $"Atenção, {nome}!\n\n" +
             $"Você tem *R$ {valorExpirando:F2}* em cashback que vence {prazo}.\n\n" +
             $"Passe na loja e use antes de expirar! 🛹";
 
-        await EnviarMensagemAsync(telefone, msg);
+        await EnviarMensagemAsync(loja, telefone, msg);
     }
 
     // ── 5. Alerta: pontos próximos do vencimento ──
-    public async Task EnviarAlertaPontosAsync(string nome, string telefone,
+    public async Task EnviarAlertaPontosAsync(Loja loja, string nome, string telefone,
         int pontos, int diasRestantes)
     {
         var prazo = diasRestantes == 1 ? "amanhã" : $"em *{diasRestantes} dias*";
         var msg =
-            $"⚠️ *Gaia Skate & Surf*\n\n" +
+            $"⚠️ *{loja.Nome}*\n\n" +
             $"Atenção, {nome}!\n\n" +
             $"Seus *{pontos} pontos* vencem {prazo}.\n\n" +
             $"Venha trocar por brindes antes que expirem! 🛹🎁";
 
-        await EnviarMensagemAsync(telefone, msg);
+        await EnviarMensagemAsync(loja, telefone, msg);
     }
 
     // ── Formata número para o padrão internacional brasileiro ──

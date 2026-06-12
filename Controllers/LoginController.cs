@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ProjetoPontos.Data;
 using ProjetoPontos.Models;
 using ProjetoPontos.Services;
@@ -27,24 +28,25 @@ namespace ProjetoPontos.Controllers
                 return BadRequest("Login inválido.");
             }
 
-            var usuario = _dbContext.Usuarios.FirstOrDefault(u => u.UserName == login.Username);
+            var usuario = _dbContext.Usuarios.IgnoreQueryFilters().FirstOrDefault(u => u.UserName == login.Username);
             if (usuario != null && usuario.VerificarSenha(login.Password))
             {
-                var token = _tokenService.GerarToken(usuario.Id.ToString(), usuario.UserName, usuario.Cargo);
+                var token = _tokenService.GerarToken(usuario.Id.ToString(), usuario.UserName, usuario.Cargo, usuario.LojaId);
                 return Ok(new
                 {
                     token,
                     tipoConta = "Usuario",
                     id = usuario.Id,
                     userName = usuario.UserName,
-                    cargo = usuario.Cargo
+                    cargo = usuario.Cargo,
+                    lojaId = usuario.LojaId
                 });
             }
 
-            var cliente = _dbContext.Clientes.FirstOrDefault(c => c.UserName == login.Username);
+            var cliente = _dbContext.Clientes.IgnoreQueryFilters().FirstOrDefault(c => c.UserName == login.Username);
             if (cliente != null && cliente.VerificarSenha(login.Password))
             {
-                var token = _tokenService.GerarToken(cliente.Cpf!, cliente.UserName!, "Cliente");
+                var token = _tokenService.GerarToken(cliente.Cpf!, cliente.UserName!, "Cliente", cliente.LojaId);
                 return Ok(new
                 {
                     token,
@@ -52,7 +54,8 @@ namespace ProjetoPontos.Controllers
                     cpf = cliente.Cpf,
                     userName = cliente.UserName,
                     nome = cliente.Nome,
-                    cargo = "Cliente"
+                    cargo = "Cliente",
+                    lojaId = cliente.LojaId
                 });
             }
 

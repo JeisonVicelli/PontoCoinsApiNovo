@@ -5,17 +5,22 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ProjetoPontos.Models
 {
     [Table("Pedido")]
-    public class Pedido
+    public class Pedido : ITenantEntity
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
-        
+
         [ForeignKey("ClienteId")]
         public Cliente Cliente { get; set; }
 
         [Column("ValorTotalPontos")]
         public int ValorTotalPontos { get; set; }
+
+        public int LojaId { get; set; }
+
+        [ForeignKey("LojaId")]
+        public Loja? Loja { get; set; }
 
         [NotMapped]
         public List<Brinde> Brindes { get; set; }

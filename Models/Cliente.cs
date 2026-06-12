@@ -1,16 +1,22 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.RegularExpressions;
 
 namespace ProjetoPontos.Models
 {
-    public class Cliente : Pessoa
+    public class Cliente : Pessoa, ITenantEntity
     {
         [Required(ErrorMessage = "O campo Número de Telefone é obrigatório.")]
-        public string? NumeroTelefone { get; set; }  
+        public string? NumeroTelefone { get; set; }
         public int? Pontos { get; set; }
         public decimal ValorTotalGasto { get; set; }
         public decimal CashbackAcumulado { get; set; }
+
+        public int LojaId { get; set; }
+
+        [ForeignKey("LojaId")]
+        public Loja? Loja { get; set; }
 
         public bool IsTelefoneValido()
         {

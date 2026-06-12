@@ -16,13 +16,13 @@ public class BrindeController : ControllerBase
         _dbContext = dbContext;
     }
     [HttpPost]
-    [Route("cadastrar")]   
-    public IActionResult Criar(Brinde brinde)
+    [Route("cadastrar")]
+    public async Task<IActionResult> Criar(Brinde brinde)
     {
         if(_dbContext is null) return NotFound();
         if(_dbContext.Brindes is null) return NotFound();
-        _dbContext.AddAsync(brinde);
-        _dbContext.SaveChangesAsync();
+        await _dbContext.AddAsync(brinde);
+        await _dbContext.SaveChangesAsync();
         return Created("",brinde);
     }
     [HttpGet]

@@ -5,7 +5,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ProjetoPontos.Models;
 
 [Table("HistoricoMovimentacao")]
-public class HistoricoMovimentacao
+public class HistoricoMovimentacao : ITenantEntity
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
@@ -22,4 +22,9 @@ public class HistoricoMovimentacao
     public decimal Valor { get; set; }
 
     public int PontosMovimentados { get; set; }
+
+    public int LojaId { get; set; }
+
+    [ForeignKey("LojaId")]
+    public Loja? Loja { get; set; }
 }

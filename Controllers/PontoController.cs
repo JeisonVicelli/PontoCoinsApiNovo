@@ -110,13 +110,16 @@ namespace Controles
 
             var expiracao = DateTime.UtcNow.AddDays(ConfiguracoesFidelidade.ValidadeCashbackDias).ToString(FmtData);
 
+            var loja = await _dbContext.Lojas!.FindAsync(cliente.LojaId);
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    if (!string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
+                    if (loja is not null && !string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
                     {
                         await _whatsapp.EnviarAtualizacaoPontosAsync(
+                            loja,
                             cliente.Nome ?? "Cliente",
                             cliente.NumeroTelefone,
                             cliente.Pontos ?? 0,
@@ -152,13 +155,16 @@ namespace Controles
 
             await RegistrarHistoricoAsync(model.CpfCliente, "Resgate Pontos", 0, -model.Pontos);
 
+            var loja = await _dbContext.Lojas!.FindAsync(cliente.LojaId);
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    if (!string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
+                    if (loja is not null && !string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
                     {
                         await _whatsapp.EnviarResgatePontosAsync(
+                            loja,
                             cliente.Nome ?? "Cliente",
                             cliente.NumeroTelefone,
                             model.Pontos,
@@ -198,19 +204,21 @@ namespace Controles
 
             await RegistrarHistoricoAsync(model.CpfCliente, "Uso Cashback", -solicitado, 0);
 
+            var loja = await _dbContext.Lojas!.FindAsync(cliente.LojaId);
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    if (!string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
+                    if (loja is not null && !string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
                     {
                         var saldoRestante = cliente.CashbackAcumulado;
-                        var msg = $"✅ *Gaia Skate & Surf*\n\n" +
+                        var msg = $"✅ *{loja.Nome}*\n\n" +
                                   $"Oi {cliente.Nome ?? "Cliente"}! Cashback usado:\n\n" +
                                   $"💰 Desconto: *R$ {solicitado:F2}*\n" +
                                   $"💰 Saldo restante: *R$ {saldoRestante:F2}*\n\n" +
                                   $"Valeu pelo rolê! 🛹";
-                        await _whatsapp.EnviarMensagemAsync(cliente.NumeroTelefone, msg);
+                        await _whatsapp.EnviarMensagemAsync(loja, cliente.NumeroTelefone, msg);
                     }
                 }
                 catch { /* fire-and-forget — falha silenciosa não bloqueia a resposta */ }
@@ -243,13 +251,16 @@ namespace Controles
             cliente.Pontos = pontosCliente - pontosBrinde;
             await _dbContext.SaveChangesAsync();
 
+            var loja = await _dbContext.Lojas!.FindAsync(cliente.LojaId);
+
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    if (!string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
+                    if (loja is not null && !string.IsNullOrWhiteSpace(cliente.NumeroTelefone))
                     {
                         await _whatsapp.EnviarResgatePontosAsync(
+                            loja,
                             cliente.Nome ?? "Cliente",
                             cliente.NumeroTelefone,
                             pontosBrinde,

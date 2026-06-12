@@ -1,14 +1,20 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace ProjetoPontos.Models;
 
-public class Usuario
+public class Usuario : ITenantEntity
 {
     [Key]
     public int Id { get; set; }
+
+    public int LojaId { get; set; }
+
+    [ForeignKey("LojaId")]
+    public Loja? Loja { get; set; }
 
     private string _userName = string.Empty;
 

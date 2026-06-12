@@ -13,16 +13,18 @@ public class AlertasController : ControllerBase
 {
     private readonly LojaDbContext    _db;
     private readonly WhatsAppService  _whatsapp;
+    private readonly ITenantProvider  _tenant;
 
     private const int DiasAlertaCashback = 15;   // alertar 15 dias antes de expirar (dia 45)
     private const int DiasAlertaPontos   = 15;   // alertar 15 dias antes de expirar (dia 350)
     private const int ValidadeCashback   = 60;
     private const int ValidadePontos     = 365;
 
-    public AlertasController(LojaDbContext db, WhatsAppService whatsapp)
+    public AlertasController(LojaDbContext db, WhatsAppService whatsapp, ITenantProvider tenant)
     {
         _db       = db;
         _whatsapp = whatsapp;
+        _tenant   = tenant;
     }
 
     // ─────────────────────────────────────────────
@@ -73,6 +75,9 @@ public class AlertasController : ControllerBase
     [HttpPost("enviar")]
     public async Task<IActionResult> EnviarAlertas()
     {
+        var loja = await _db.Lojas!.FindAsync(_tenant.LojaId);
+        if (loja is null) return NotFound("Loja do usuário autenticado não encontrada.");
+
         var agora              = DateTime.UtcNow;
         var limiteAlertaCashback = agora.AddDays(DiasAlertaCashback);
         var corteMovimentacao  = agora.AddDays(-(ValidadePontos - DiasAlertaPontos));
@@ -101,6 +106,7 @@ public class AlertasController : ControllerBase
             try
             {
                 await _whatsapp.EnviarAlertaExpiracaoAsync(
+                    loja,
                     cliente.Nome ?? "Cliente",
                     cliente.NumeroTelefone,
                     item.ValorTotal,
@@ -126,6 +132,7 @@ public class AlertasController : ControllerBase
             try
             {
                 await _whatsapp.EnviarAlertaPontosAsync(
+                    loja,
                     cliente.Nome ?? "Cliente",
                     cliente.NumeroTelefone,
                     cliente.Pontos ?? 0,

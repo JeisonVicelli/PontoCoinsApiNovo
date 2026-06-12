@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProjetoPontos.Data;
+using ProjetoPontos.Models;
 
 namespace ProjetoPontos.Services;
 
@@ -26,23 +27,23 @@ public class AlertaExpiracaoService : BackgroundService
         _logger       = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken ct)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("AlertaExpiracaoService iniciado.");
 
-        while (!ct.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
             var delay = CalcularDelayAte09h();
             _logger.LogInformation("Próximo disparo de alertas em {Minutos} min ({Hora} BRT).",
                 (int)delay.TotalMinutes,
                 TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow.Add(delay), TzBrasilia).ToString("dd/MM HH:mm"));
 
-            try { await Task.Delay(delay, ct); }
+            try { await Task.Delay(delay, stoppingToken); }
             catch (TaskCanceledException) { break; }
 
-            if (ct.IsCancellationRequested) break;
+            if (stoppingToken.IsCancellationRequested) break;
 
-            await EnviarAlertasAsync(ct);
+            await EnviarAlertasAsync(stoppingToken);
         }
 
         _logger.LogInformation("AlertaExpiracaoService encerrado.");
@@ -63,18 +64,52 @@ public class AlertaExpiracaoService : BackgroundService
 
     private async Task EnviarAlertasAsync(CancellationToken ct)
     {
-        _logger.LogInformation("Iniciando envio de alertas de expiração...");
-        int alertasCashback = 0, alertasPontos = 0;
+        using var scope  = _scopeFactory.CreateScope();
+        var options      = scope.ServiceProvider.GetRequiredService<DbContextOptions<LojaDbContext>>();
+        var whatsapp     = scope.ServiceProvider.GetRequiredService<WhatsAppService>();
 
-        using var scope    = _scopeFactory.CreateScope();
-        var db             = scope.ServiceProvider.GetRequiredService<LojaDbContext>();
-        var whatsapp       = scope.ServiceProvider.GetRequiredService<WhatsAppService>();
+        List<Loja> lojas;
+        using (var db = new LojaDbContext(options, new StaticTenantProvider(0)))
+        {
+            lojas = await db.Lojas!.Where(l => l.Ativo).ToListAsync(ct);
+        }
 
-        var agora                = DateTime.UtcNow;
+        _logger.LogInformation("Processando alertas de {Quantidade} loja(s) ativa(s)...", lojas.Count);
+
+        foreach (var loja in lojas)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            if (string.IsNullOrWhiteSpace(loja.ZApiInstanceId) ||
+                string.IsNullOrWhiteSpace(loja.ZApiToken) ||
+                string.IsNullOrWhiteSpace(loja.ZApiClientToken))
+            {
+                _logger.LogWarning("Loja {LojaId} ({Nome}) sem credenciais Z-API configuradas — alertas ignorados.", loja.Id, loja.Nome);
+                continue;
+            }
+
+            using var db = new LojaDbContext(options, new StaticTenantProvider(loja.Id));
+            await EnviarAlertasDaLojaAsync(db, whatsapp, loja, ct);
+        }
+    }
+
+    private async Task EnviarAlertasDaLojaAsync(LojaDbContext db, WhatsAppService whatsapp, Loja loja, CancellationToken ct)
+    {
+        var agora = DateTime.UtcNow;
+
+        int alertasCashback = await ProcessarAlertasCashbackAsync(db, whatsapp, loja, agora, ct);
+        int alertasPontos   = await ProcessarAlertasPontosAsync(db, whatsapp, loja, agora, ct);
+
+        _logger.LogInformation(
+            "Loja {LojaId}: {Cashback} alertas de cashback, {Pontos} alertas de pontos.",
+            loja.Id, alertasCashback, alertasPontos);
+    }
+
+    private async Task<int> ProcessarAlertasCashbackAsync(LojaDbContext db, WhatsAppService whatsapp, Loja loja, DateTime agora, CancellationToken ct)
+    {
+        int alertasCashback = 0;
         var limiteAlertaCashback = agora.AddDays(DiasAlertaCashback);
-        var corteMovimentacao    = agora.AddDays(-(ValidadePontos - DiasAlertaPontos));
 
-        // ── Cashback expirando em 15 dias ──
         try
         {
             var lotesPorCliente = await db.CashbackLotes!
@@ -98,21 +133,28 @@ public class AlertaExpiracaoService : BackgroundService
                 try
                 {
                     await whatsapp.EnviarAlertaExpiracaoAsync(
-                        cliente.Nome ?? "Cliente", cliente.NumeroTelefone, item.ValorTotal, dias);
+                        loja, cliente.Nome ?? "Cliente", cliente.NumeroTelefone, item.ValorTotal, dias);
                     alertasCashback++;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning("Falha ao enviar alerta cashback para {Cpf}: {Msg}", item.Cpf, ex.Message);
+                    _logger.LogWarning(ex, "Falha ao enviar alerta cashback para {Cpf} (Loja {LojaId}).", item.Cpf, loja.Id);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao processar alertas de cashback.");
+            _logger.LogError(ex, "Erro ao processar alertas de cashback da loja {LojaId}.", loja.Id);
         }
 
-        // ── Pontos expirando em 15 dias ──
+        return alertasCashback;
+    }
+
+    private async Task<int> ProcessarAlertasPontosAsync(LojaDbContext db, WhatsAppService whatsapp, Loja loja, DateTime agora, CancellationToken ct)
+    {
+        int alertasPontos = 0;
+        var corteMovimentacao = agora.AddDays(-(ValidadePontos - DiasAlertaPontos));
+
         try
         {
             var clientesPontos = await db.Clientes!
@@ -131,22 +173,20 @@ public class AlertaExpiracaoService : BackgroundService
                 try
                 {
                     await whatsapp.EnviarAlertaPontosAsync(
-                        cliente.Nome ?? "Cliente", cliente.NumeroTelefone, cliente.Pontos ?? 0, dias);
+                        loja, cliente.Nome ?? "Cliente", cliente.NumeroTelefone, cliente.Pontos ?? 0, dias);
                     alertasPontos++;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning("Falha ao enviar alerta pontos para {Cpf}: {Msg}", cliente.Cpf, ex.Message);
+                    _logger.LogWarning(ex, "Falha ao enviar alerta pontos para {Cpf} (Loja {LojaId}).", cliente.Cpf, loja.Id);
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao processar alertas de pontos.");
+            _logger.LogError(ex, "Erro ao processar alertas de pontos da loja {LojaId}.", loja.Id);
         }
 
-        _logger.LogInformation(
-            "Alertas enviados: {Cashback} cashback, {Pontos} pontos.",
-            alertasCashback, alertasPontos);
+        return alertasPontos;
     }
 }
