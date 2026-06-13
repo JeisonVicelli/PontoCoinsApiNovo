@@ -105,11 +105,11 @@ app.UseAuthorization();
 // 5. Mapeia os endpoints dos controladores (rotas da sua API)
 app.MapControllers();
 
-// --- Garante que o banco e as tabelas existem (cria se não existir) ---
+// --- Aplica as migrations pendentes no banco ---
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<LojaDbContext>();
-    db.Database.EnsureCreated(); // cria todas as tabelas mapeadas se o banco estiver vazio
+    db.Database.Migrate();
 }
 
 // --- Executa a Aplicação ---

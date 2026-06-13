@@ -65,10 +65,7 @@ services:
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:5181
       ConnectionStrings__DefaultConnection: "server=mysql;port=3306;database=${MYSQL_DATABASE:-PontoCoinsApiNovo};uid=root;pwd=${MYSQL_ROOT_PASSWORD:-#LojaGaia2011};"
-    ports:
-      - "5181:5181"
     networks:
       - pontocoins-net
     depends_on:
